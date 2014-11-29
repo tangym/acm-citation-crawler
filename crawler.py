@@ -7,6 +7,7 @@ import os
 import time
 import random
 import logging
+from multiprocessing.dummy import Pool as ThreadPool
 from bs4 import BeautifulSoup
 import cfg
 
@@ -14,20 +15,21 @@ random.seed(time.time())
 log = cfg.log
 
 def main():
-    bibs, errs = get_url_citations(cfg.CONFERENCE_PAGE)
+    bibs = get_url_citations(cfg.CONFERENCE_PAGE)
+    # bibs, errs = get_url_citations(cfg.CONFERENCE_PAGE)
     conference_name = os.path.basename(cfg.CONFERENCE_PAGE)
     conference_name.split('.')[-1] = 'bib'
     conference_name = '.'.join(conference_name)
 
-    bib_file = cfg.BIB_FILE if not cfg.BIB_FILE else get_valid_file_name()
+    bib_file = cfg.BIB_FILE if cfg.BIB_FILE else get_valid_file_name(conference_name)
     with open(bib_file, 'w', encoding=cfg.BIB_ENCODING) as f:
         for bib in bibs:
             f.write(bib)
             f.write('\n')
-    with open(cfg.ERROR_OUTPUT, 'w', encoding=cfg.BIB_ENCODING) as f:
-        for err in errs:
-            f.write(err)
-            f.write('\n')
+    # with open(cfg.ERROR_OUTPUT, 'w', encoding=cfg.BIB_ENCODING) as f:
+    #     for err in errs:
+    #         f.write(err)
+    #         f.write('\n')
 
 
 def retry(func):
@@ -35,7 +37,7 @@ def retry(func):
         for i in range(1 + cfg.RETRY):
             try:
                 return func(url)
-            except error.HTTPError as e:
+            except (error.HTTPError, error.URLError) as e:
                 # logging.error(e)
                 # logging.info('retrying...')
                 print('error occurs, retrying...')
@@ -83,8 +85,18 @@ def get_citation_id(func):
     return _decorator
 
 
+def random_sleep(func):
+    def _decorator(citation_id):
+        text = func(citation_id)
+        time.sleep(random.uniform(cfg.SLEEP_TIME_RANGE[0], cfg.SLEEP_TIME_RANGE[1]))
+        return text
+    return _decorator
+
+
+@random_sleep
 @get_citation_id
 def get_citation_text(citation_id):
+    print(citation_id)
     res = urlopen(cfg.URL_BIBTEX.format(id=citation_id))
     if res:
         soup = BeautifulSoup(res.read())
@@ -110,19 +122,28 @@ def get_url_citations(url_conference):
         url_citations = filter(lambda url: 'citation.cfm' in url, urls)
         url_citations = list(url_citations)
 
-        print('%d citations found.' % len(url_citations))
-        # log.info('%d citations found.' % len(url_citations))
-        for i in url_citations:
-            print(i)
-            # log.info(i)
-            citation_text = get_citation_text(i)
-            if citation_text:
-                citations += [citation_text]
-            else:
-                error_urls += [i]
-            time.sleep(random.uniform(cfg.SLEEP_TIME_RANGE[0], cfg.SLEEP_TIME_RANGE[1]))
-    print(len(citations))
-    return citations, error_urls
+    print('%d citations found.' % len(url_citations))
+    # log.info('%d citations found.' % len(url_citations))
+
+    pool = ThreadPool(cfg.WORKER)
+    citations = pool.map(get_citation_text, url_citations)
+    pool.close()
+    pool.join()
+    # TODO: result = pool.map(func, ls)
+    # pool.close()
+    # pool.join()
+
+    # for i in url_citations:
+    #     print(i)
+    #     # log.info(i)
+    #     citation_text = get_citation_text(i)
+    #     if citation_text:
+    #         citations += [citation_text]
+    #     else:
+    #         error_urls += [i]
+    #     time.sleep(random.uniform(cfg.SLEEP_TIME_RANGE[0], cfg.SLEEP_TIME_RANGE[1]))
+    print('%d of %d citations fetched.' % (len(citations), len(url_citations)))
+    return citations  # , error_urls
 
 
 def get_valid_file_name(file_name):

@@ -1,5 +1,7 @@
 import os
 import logging
+from multiprocessing.dummy import Pool as ThreadPool
+
 
 log = logging.Logger('command', level=logging.DEBUG)
 
@@ -18,6 +20,7 @@ BIB_ENCODING = 'utf8'
 
 SLEEP_TIME_RANGE = (4, 10)
 RETRY = 1
+WORKER = 35
 
 # log.info('loading proxy file...')
 print('loading proxy file...')
@@ -29,8 +32,18 @@ print('%d proxies loaded.' % len(PROXIES))
 
 print('testing proxies...')
 # log.info('testing proxies...')
-PROXIES = list(filter(lambda ip:
-        os.system('ping %s -n 1 > nul' % ip.split(':')[1][2:]) == 0, PROXIES))
+
+pool = ThreadPool(WORKER)
+def is_available(ip):
+    if os.system('ping %s -n 1 > nul' % ip.split(':')[1][2:]) == 0:
+        return ip
+    else:
+        return ''
+PROXIES = pool.map(is_available, PROXIES)
+pool.close()
+pool.join()
+
+PROXIES = list(filter(lambda ip: ip, PROXIES))
 if PROXIES:
     print('%d proxies available.' % len(PROXIES))
     # log.info('%d proxies available.' % len(PROXIES))
