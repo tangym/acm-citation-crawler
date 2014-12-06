@@ -18,14 +18,16 @@ def main():
     bibs = get_url_citations(cfg.CONFERENCE_PAGE)
     # bibs, errs = get_url_citations(cfg.CONFERENCE_PAGE)
     conference_name = os.path.basename(cfg.CONFERENCE_PAGE)
-    conference_name.split('.')[-1] = 'bib'
-    conference_name = '.'.join(conference_name)
+    name = conference_name.split('.')
+    name[-1] = 'bib'
+    conference_name = '.'.join(name)
 
     bib_file = cfg.BIB_FILE if cfg.BIB_FILE else get_valid_file_name(conference_name)
     with open(bib_file, 'w', encoding=cfg.BIB_ENCODING) as f:
         for bib in bibs:
-            f.write(bib)
+            f.write(bibs[bib])
             f.write('\n')
+        f.write(get_group_tree_string(bibs))
     # with open(cfg.ERROR_OUTPUT, 'w', encoding=cfg.BIB_ENCODING) as f:
     #     for err in errs:
     #         f.write(err)
@@ -37,13 +39,12 @@ def retry(func):
         for i in range(1 + cfg.RETRY):
             try:
                 return func(url)
-            except (error.HTTPError, error.URLError) as e:
+            except (error.HTTPError, error.URLError, ConnectionResetError) as e:
                 # logging.error(e)
                 # logging.info('retrying...')
                 print('error occurs, retrying...')
                 time.sleep(10)
     return _decorator
-
 
 
 def random_proxy(func):
@@ -101,7 +102,7 @@ def get_citation_text(citation_id):
     if res:
         soup = BeautifulSoup(res.read())
         if soup.pre:
-            return soup.pre.get_text()
+            return {citation_id: soup.pre.get_text()}
     return ''
 
 
@@ -112,7 +113,7 @@ def get_url_citations(url_conference):
     # url_conference = 'http://dl.acm.org/citation.cfm?id=2600428&picked=prox&CFID=586594267&CFTOKEN=76400862'
     # res = urlopen(url_conference)
     # soup = BeautifulSoup(res.read())
-    citations = []
+    citations = {}
     error_urls = []
 
     with open(url_conference, encoding='utf-8') as f:
@@ -129,19 +130,14 @@ def get_url_citations(url_conference):
     citations = pool.map(get_citation_text, url_citations)
     pool.close()
     pool.join()
-    # TODO: result = pool.map(func, ls)
-    # pool.close()
-    # pool.join()
 
-    # for i in url_citations:
-    #     print(i)
-    #     # log.info(i)
-    #     citation_text = get_citation_text(i)
-    #     if citation_text:
-    #         citations += [citation_text]
-    #     else:
-    #         error_urls += [i]
-    #     time.sleep(random.uniform(cfg.SLEEP_TIME_RANGE[0], cfg.SLEEP_TIME_RANGE[1]))
+    temp_citations = {}
+    for citation in citations:
+        if citation:
+            for key in citation:
+                temp_citations[key] = citation[key]
+    citations = temp_citations
+
     print('%d of %d citations fetched.' % (len(citations), len(url_citations)))
     return citations  # , error_urls
 
@@ -151,4 +147,55 @@ def get_valid_file_name(file_name):
         file_name = file_name.replace(c, ' ')
     return file_name
 
+
+def get_jabref_comment_string(func):
+    def _decorator(bibs):
+        return '@comment{jabref-meta: groupsversion:3;}\n' \
+                + '@comment{jabref-meta: groupstree:\n%s}' % func(bibs)
+    return _decorator
+
+
+@get_jabref_comment_string
+def get_group_tree_string(bibs):
+    def get_id_key(bibs):
+        citation_id_key = {}
+        for citation_id in bibs:
+            citation_id_key[citation_id] = bibs[citation_id].strip()  \
+                .split('\n')[0].split('{')[-1].split(',')[0]
+        return citation_id_key
+
+
+    def get_groups(url_conference):
+        groups = {'':[],}
+        with open(url_conference, encoding='utf-8') as f:
+            soup = BeautifulSoup(f)
+            current_session = ''
+            # for i in soup.find(class_='text12').find_all('td'):
+            for i in soup.find_all('td'):
+                if 'SESSION' in i.get_text():
+                    current_session = i.get_text()
+                    groups[current_session] = []
+                elif i.find('a'):
+                    url = i.find('a')['href']
+                    if 'citation.cfm' in url:
+                        if current_session:
+                            groups[current_session] += [get_citation_id(lambda e: e)(url)]
+        return groups
+
+    groups = get_groups(cfg.CONFERENCE_PAGE)
+    id_key = get_id_key(bibs)
+
+    def get_group_string(group):
+        group_keys = map(lambda citation_id: id_key[citation_id] \
+            if citation_id in id_key else '', groups[group])
+        group_keys = filter(lambda e: e, group_keys)
+        if group:
+            return '1 ExplicitGroup:%s\\;0\\;%s\\;;' % (group, '\\;'.join(group_keys))
+        else:
+            return '0 AllEntriesGroup:\\;0\\;%s\\;;' % '\\;'.join(group_keys)
+
+    group_tree = map(get_group_string, groups.keys())
+    return '\n'.join(group_tree)
+
 main()
+
