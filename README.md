@@ -28,6 +28,7 @@ https://5.6.7.8:90
 ```
 
 - Run command prompt and run `python crawler.py`. If it warns some package is not installed, maybe you can try `pip install -r requirements.txt`.
+If the program fails to parse citations in the conference proceedings page, check whether there are multiple elements belongs to `text12` class, delete all others and only keep the one which contains citations.
 
 The program will take a while to finish collecting all the bibtex citations, because ACM library limits the connection speed from the same IP.
 The program may also fail crawling some citations sometimes, and it will not out put the fail citations' information.
