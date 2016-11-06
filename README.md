@@ -3,15 +3,35 @@ acm-citation-crawler
 
 ### Introduction
 
-downloads all the bibtex citations of a conference from an ACM DL url
+This program downloads all the bibtex citations from an ACM conference url.
 
-The program may fail crawling some citations sometimes, and it will not out put the fail citations' information.
+
+### How to use
+Follow these steps:
+1. Find a ACM conference proceedings page, for example [RecSys 14'](http://dl.acm.org/citation.cfm?id=2645710&preflayout=flat#abstract). 
+Notice the page should switch to **flat view** and contains the table of contents (links to each paper).
+2. Hit `Ctrl-S` to save the conference page in the directory where the program locates.
+3. Copy the **whole** file name of the saved web page, including the extension `.html`, and paste into `pages.txt`, one file name per line.
+The program will automatically parse each web page indicated in `pages.txt` and extract bibtex citations to corresponding files.
+4. (Maybe optional) Find some free proxies and create `proxy.txt` file in the following format, one proxy per line:
+```
+<protocol>://<ip>:<port>
+```
+For example, the content of `proxy.txt` file can be
+```
+http://1.2.3.4:80
+https://5.6.7.8:90
+```
+5. Run command prompt and run `python crawler.py`. If it warns some package is not installed, maybe you can try `pip install -r requirements.txt`.
+
+The program will take a while to finish collecting all the bibtex citations, because ACM library limits the connection speed from the same IP.
+The program may also fail crawling some citations sometimes, and it will not out put the fail citations' information.
 So if it fails, just try again util it successes. :)
 
-Open the output bibtex with [JabRef](http://jabref.sourceforge.net/), and browse the citations.
-There's a set of [extensions](http://www.lhnr.de/ext/) which can help to download all pdfs automatically.
 
-### JabRef group comments gramma
+### BibTex format citation
+
+#### JabRef group comments gramma
 
 ```tex
 @comment{jabref-meta: groupsversion:3;}
@@ -26,6 +46,10 @@ There's a set of [extensions](http://www.lhnr.de/ext/) which can help to downloa
 
 [depth] ExplicitGroup:[group name]\;0\;[bibtex key1]\;[bibtex key2]\;;
 
-the parent node is indicated by the nearest previous line which depth is less than the current node.
+The parent node is indicated by the nearest previous line which depth is less than the current node.
+
+Once you have a `.bib` citation file, open it with [JabRef](http://jabref.sourceforge.net/), and browse the citations.
+There's a set of [extensions](http://www.lhnr.de/ext/) which can help to download all pdfs automatically.
+
 
 -- EOF --
