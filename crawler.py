@@ -171,7 +171,7 @@ def get_url_citations(url_conference):
         url_citations = filter(lambda url: 'citation.cfm' in url, urls)
         url_citations = list(url_citations)
 
-    log.info('%d citations found.' % len(url_citations))
+    log.info('%d citations found in %s.' % (len(url_citations), url_conference))
 
     pool = ThreadPool(cfg.WORKER)
     citations = pool.map(get_citation_text, url_citations)
