@@ -1,2 +1,4 @@
+requests
 BeautifulSoup
 bibtexparser
+selenium
