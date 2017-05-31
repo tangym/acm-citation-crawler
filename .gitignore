@@ -1,0 +1,7 @@
+__pycache__/
+*.log
+db.dat
+db.dir
+db.bak
+proxy*.txt
+pages*.txt
